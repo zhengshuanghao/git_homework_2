@@ -363,6 +363,86 @@ class WatermarkApp:
         quality_label = ttk.Label(quality_frame, textvariable=self.jpeg_quality)
         quality_label.pack(anchor=tk.W)
         
+        # 图片尺寸调整设置
+        resize_frame = ttk.LabelFrame(export_frame, text="图片尺寸调整", padding=5)
+        resize_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 启用尺寸调整
+        self.enable_resize = tk.BooleanVar(value=False)
+        ttk.Checkbutton(resize_frame, text="启用尺寸调整", variable=self.enable_resize,
+                       command=self.toggle_resize_controls).pack(anchor=tk.W, pady=(0, 5))
+        
+        # 尺寸调整选项框架
+        self.resize_options_frame = ttk.Frame(resize_frame)
+        self.resize_options_frame.pack(fill=tk.X)
+        
+        # 调整模式
+        self.resize_mode = tk.StringVar(value="percentage")
+        modes_frame = ttk.Frame(self.resize_options_frame)
+        modes_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Radiobutton(modes_frame, text="按百分比", variable=self.resize_mode, 
+                       value="percentage", command=self.on_resize_mode_change).pack(side=tk.LEFT)
+        ttk.Radiobutton(modes_frame, text="按宽度", variable=self.resize_mode, 
+                       value="width", command=self.on_resize_mode_change).pack(side=tk.LEFT)
+        ttk.Radiobutton(modes_frame, text="按高度", variable=self.resize_mode, 
+                       value="height", command=self.on_resize_mode_change).pack(side=tk.LEFT)
+        ttk.Radiobutton(modes_frame, text="自定义", variable=self.resize_mode, 
+                       value="custom", command=self.on_resize_mode_change).pack(side=tk.LEFT)
+        
+        # 参数输入框架
+        self.params_frame = ttk.Frame(self.resize_options_frame)
+        self.params_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        # 百分比输入
+        self.percentage_frame = ttk.Frame(self.params_frame)
+        self.resize_percentage = tk.IntVar(value=100)
+        ttk.Label(self.percentage_frame, text="缩放比例:").pack(side=tk.LEFT)
+        percentage_spin = ttk.Spinbox(self.percentage_frame, from_=10, to=500, 
+                                     textvariable=self.resize_percentage, width=8)
+        percentage_spin.pack(side=tk.LEFT, padx=(5, 2))
+        ttk.Label(self.percentage_frame, text="%").pack(side=tk.LEFT)
+        
+        # 宽度输入
+        self.width_frame = ttk.Frame(self.params_frame)
+        self.resize_width = tk.IntVar(value=800)
+        ttk.Label(self.width_frame, text="宽度:").pack(side=tk.LEFT)
+        width_spin = ttk.Spinbox(self.width_frame, from_=100, to=10000, 
+                                textvariable=self.resize_width, width=8)
+        width_spin.pack(side=tk.LEFT, padx=(5, 2))
+        ttk.Label(self.width_frame, text="像素").pack(side=tk.LEFT)
+        
+        # 高度输入
+        self.height_frame = ttk.Frame(self.params_frame)
+        self.resize_height = tk.IntVar(value=600)
+        ttk.Label(self.height_frame, text="高度:").pack(side=tk.LEFT)
+        height_spin = ttk.Spinbox(self.height_frame, from_=100, to=10000, 
+                                 textvariable=self.resize_height, width=8)
+        height_spin.pack(side=tk.LEFT, padx=(5, 2))
+        ttk.Label(self.height_frame, text="像素").pack(side=tk.LEFT)
+        
+        # 自定义尺寸输入
+        self.custom_frame = ttk.Frame(self.params_frame)
+        custom_row1 = ttk.Frame(self.custom_frame)
+        custom_row1.pack(fill=tk.X, pady=(0, 2))
+        custom_row2 = ttk.Frame(self.custom_frame)
+        custom_row2.pack(fill=tk.X)
+        
+        self.custom_width = tk.IntVar(value=800)
+        self.custom_height = tk.IntVar(value=600)
+        self.keep_aspect_ratio = tk.BooleanVar(value=True)
+        
+        ttk.Label(custom_row1, text="宽度:").pack(side=tk.LEFT)
+        ttk.Spinbox(custom_row1, from_=100, to=10000, textvariable=self.custom_width, width=8).pack(side=tk.LEFT, padx=(5, 10))
+        ttk.Label(custom_row1, text="高度:").pack(side=tk.LEFT)
+        ttk.Spinbox(custom_row1, from_=100, to=10000, textvariable=self.custom_height, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        
+        ttk.Checkbutton(custom_row2, text="保持宽高比", variable=self.keep_aspect_ratio).pack(anchor=tk.W)
+        
+        # 初始化显示状态
+        self.on_resize_mode_change()
+        self.toggle_resize_controls()
+        
         # 导出按钮
         ttk.Button(export_frame, text="开始导出", command=self.start_export).pack(fill=tk.X, pady=(20, 0))
         
@@ -766,8 +846,17 @@ class WatermarkApp:
                     if not original_image:
                         continue
                     
+                    # 调整图片尺寸（如果启用）
+                    processed_image = original_image
+                    if self.enable_resize.get():
+                        resize_params = self.get_resize_parameters()
+                        if resize_params:
+                            processed_image = self.image_processor.resize_image_advanced(
+                                original_image, **resize_params
+                            )
+                    
                     # 应用水印
-                    watermarked_image = self.watermark_manager.apply_watermark(original_image)
+                    watermarked_image = self.watermark_manager.apply_watermark(processed_image)
                     
                     # 生成输出路径
                     output_path = self.file_manager.generate_output_path(
@@ -831,3 +920,72 @@ class WatermarkApp:
         # 刷新预览
         if self.preview_image:
             self.update_preview()
+    
+    def toggle_resize_controls(self):
+        """切换尺寸调整控件的启用/禁用状态"""
+        if self.enable_resize.get():
+            # 启用尺寸调整控件
+            for child in self.resize_options_frame.winfo_children():
+                self._enable_widget(child)
+        else:
+            # 禁用尺寸调整控件
+            for child in self.resize_options_frame.winfo_children():
+                self._disable_widget(child)
+    
+    def _enable_widget(self, widget):
+        """递归启用小部件"""
+        try:
+            widget.configure(state='normal')
+        except tk.TclError:
+            pass
+        for child in widget.winfo_children():
+            self._enable_widget(child)
+    
+    def _disable_widget(self, widget):
+        """递归禁用小部件"""
+        try:
+            widget.configure(state='disabled')
+        except tk.TclError:
+            pass
+        for child in widget.winfo_children():
+            self._disable_widget(child)
+    
+    def on_resize_mode_change(self):
+        """当调整模式改变时显示对应的输入框"""
+        # 隐藏所有参数框
+        self.percentage_frame.pack_forget()
+        self.width_frame.pack_forget()
+        self.height_frame.pack_forget()
+        self.custom_frame.pack_forget()
+        
+        # 根据模式显示对应的参数框
+        mode = self.resize_mode.get()
+        if mode == "percentage":
+            self.percentage_frame.pack(fill=tk.X)
+        elif mode == "width":
+            self.width_frame.pack(fill=tk.X)
+        elif mode == "height":
+            self.height_frame.pack(fill=tk.X)
+        elif mode == "custom":
+            self.custom_frame.pack(fill=tk.X)
+    
+    def get_resize_parameters(self):
+        """获取当前的尺寸调整参数"""
+        if not self.enable_resize.get():
+            return None
+        
+        mode = self.resize_mode.get()
+        params = {'mode': mode}
+        
+        if mode == "percentage":
+            params['percentage'] = self.resize_percentage.get()
+        elif mode == "width":
+            params['width'] = self.resize_width.get()
+        elif mode == "height":
+            params['height'] = self.resize_height.get()
+        elif mode == "custom":
+            params['custom_width'] = self.custom_width.get()
+            params['custom_height'] = self.custom_height.get()
+            params['keep_aspect_ratio'] = self.keep_aspect_ratio.get()
+        
+        return params
