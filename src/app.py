@@ -89,6 +89,25 @@ class WatermarkApp:
         ttk.Button(import_frame, text="导入文件夹", 
                   command=self.import_folder).pack(fill=tk.X, pady=(0, 5))
         
+        # 方向修正选项
+        orientation_frame = ttk.Frame(import_frame)
+        orientation_frame.pack(fill=tk.X, pady=(10, 5))
+        
+        self.auto_fix_orientation = tk.BooleanVar(value=True)
+        ttk.Checkbutton(orientation_frame, text="自动修正图片方向", 
+                       variable=self.auto_fix_orientation).pack(anchor=tk.W)
+        
+        # 强制旋转选项（用于有问题的图片）
+        force_frame = ttk.Frame(import_frame)
+        force_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Label(force_frame, text="强制旋转:", font=('Arial', 8)).pack(side=tk.LEFT)
+        self.force_rotation = tk.StringVar(value="无")
+        rotation_combo = ttk.Combobox(force_frame, textvariable=self.force_rotation, 
+                                     values=["无", "顺时针90°", "逆时针90°", "180°"], width=10)
+        rotation_combo.pack(side=tk.LEFT, padx=(5, 0))
+        rotation_combo.bind('<<ComboboxSelected>>', self.on_force_rotation_change)
+        
         # 文件列表
         list_frame = ttk.Frame(file_frame)
         list_frame.pack(fill=tk.BOTH, expand=True)
@@ -694,7 +713,20 @@ class WatermarkApp:
             return
         
         current_file = self.selected_images[self.current_image_index]
-        self.preview_image = self.image_processor.load_image(current_file)
+        
+        # 根据设置决定是否自动修正方向
+        if self.auto_fix_orientation.get():
+            self.preview_image = self.image_processor.load_image(current_file)
+        else:
+            # 不进行方向修正，直接加载
+            from PIL import Image
+            self.preview_image = Image.open(current_file)
+            if self.preview_image.mode not in ('RGB', 'RGBA'):
+                self.preview_image = self.preview_image.convert('RGB')
+        
+        # 应用强制旋转（如果设置了）
+        if self.preview_image and self.force_rotation.get() != "无":
+            self.preview_image = self.apply_force_rotation(self.preview_image)
         
         if self.preview_image:
             self.update_preview()
@@ -702,6 +734,24 @@ class WatermarkApp:
             self.status_var.set(f"当前图片: {filename}")
         else:
             messagebox.showerror("错误", f"无法加载图片: {current_file}")
+    
+    def apply_force_rotation(self, image: Image.Image) -> Image.Image:
+        """应用强制旋转"""
+        rotation = self.force_rotation.get()
+        
+        if rotation == "顺时针90°":
+            return image.rotate(-90, expand=True)
+        elif rotation == "逆时针90°":
+            return image.rotate(90, expand=True)
+        elif rotation == "180°":
+            return image.rotate(180, expand=True)
+        else:
+            return image
+    
+    def on_force_rotation_change(self, event=None):
+        """强制旋转选项改变时重新加载图片"""
+        if hasattr(self, 'preview_image') and self.preview_image:
+            self.load_current_image()
     
     def update_preview(self):
         """更新预览显示"""

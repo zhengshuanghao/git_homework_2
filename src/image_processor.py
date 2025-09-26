@@ -62,47 +62,72 @@ class ImageProcessor:
     def fix_image_orientation(self, image: Image.Image) -> Image.Image:
         """修复图片方向（处理EXIF旋转信息）"""
         try:
-            # 获取EXIF数据
-            if hasattr(image, '_getexif') and image._getexif() is not None:
-                exif = image._getexif()
-                orientation = exif.get(0x0112)  # Orientation标签
-                
-                if orientation == 2:
-                    # 水平翻转
-                    image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-                elif orientation == 3:
-                    # 旋转180度
-                    image = image.rotate(180, expand=True)
-                elif orientation == 4:
-                    # 垂直翻转
-                    image = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-                elif orientation == 5:
-                    # 水平翻转后逆时针旋转90度
-                    image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-                    image = image.rotate(90, expand=True)
-                elif orientation == 6:
-                    # 逆时针旋转90度
-                    image = image.rotate(-90, expand=True)
-                elif orientation == 7:
-                    # 水平翻转后顺时针旋转90度
-                    image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-                    image = image.rotate(-90, expand=True)
-                elif orientation == 8:
-                    # 顺时针旋转90度
-                    image = image.rotate(90, expand=True)
+            # 优先使用PIL的标准方法（推荐方式）
+            from PIL import ImageOps
+            corrected_image = ImageOps.exif_transpose(image)
             
-            # 对于更新版本的Pillow，使用ImageOps.exif_transpose
+            # 检查是否进行了旋转修正
+            if corrected_image.size != image.size:
+                print(f"图片方向已修正: {image.size} -> {corrected_image.size}")
+            
+            return corrected_image
+            
+        except Exception as e:
+            print(f"使用ImageOps.exif_transpose失败: {e}")
+            
+            # 备用方案：手动处理EXIF方向
             try:
-                from PIL import ImageOps
-                image = ImageOps.exif_transpose(image)
-            except (AttributeError, ImportError):
-                # 如果不支持exif_transpose，使用上面的手动处理
-                pass
+                return self._manual_fix_orientation(image)
+            except Exception as e2:
+                print(f"手动处理EXIF方向失败: {e2}")
+                return image
+    
+    def _manual_fix_orientation(self, image: Image.Image) -> Image.Image:
+        """手动处理EXIF方向信息（备用方案）"""
+        try:
+            # 尝试获取EXIF数据
+            exif_dict = None
+            if hasattr(image, '_getexif'):
+                exif_dict = image._getexif()
+            
+            if exif_dict is None:
+                return image
+            
+            orientation = exif_dict.get(0x0112, 1)  # 默认值为1（正常方向）
+            
+            if orientation == 1:
+                # 正常方向，无需旋转
+                return image
+            elif orientation == 2:
+                # 水平翻转
+                return image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            elif orientation == 3:
+                # 旋转180度
+                return image.rotate(180, expand=True)
+            elif orientation == 4:
+                # 垂直翻转
+                return image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            elif orientation == 5:
+                # 水平翻转后逆时针旋转90度
+                image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                return image.rotate(90, expand=True)
+            elif orientation == 6:
+                # 顺时针旋转90度（修正之前的错误）
+                return image.rotate(270, expand=True)
+            elif orientation == 7:
+                # 水平翻转后顺时针旋转90度
+                image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                return image.rotate(270, expand=True)
+            elif orientation == 8:
+                # 逆时针旋转90度（修正之前的错误）
+                return image.rotate(90, expand=True)
+            else:
+                print(f"未知的EXIF方向值: {orientation}")
+                return image
                 
         except Exception as e:
-            print(f"Warning: Could not fix image orientation: {e}")
-        
-        return image
+            print(f"手动EXIF处理出错: {e}")
+            return image
     
     def create_preview(self, image: Image.Image, max_size: Optional[Tuple[int, int]] = None) -> Image.Image:
         """创建预览图像（缩放到合适大小）"""
