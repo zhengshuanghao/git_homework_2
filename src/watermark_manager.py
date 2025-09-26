@@ -42,6 +42,16 @@ class WatermarkManager:
         
         # 水印类型
         self.watermark_type = "text"  # "text" 或 "image"
+        
+        # 文本样式效果设置
+        self.enable_shadow = False
+        self.shadow_color = "#808080"
+        self.shadow_offset_x = 2
+        self.shadow_offset_y = 2
+        self.shadow_blur = 1
+        self.enable_stroke = False
+        self.stroke_color = "#FFFFFF"
+        self.stroke_width = 2
     
     def get_font(self, size: Optional[int] = None) -> ImageFont.FreeTypeFont:
         """获取字体对象"""
@@ -125,7 +135,7 @@ class WatermarkManager:
         return x, y
     
     def create_text_watermark(self, image: Image.Image) -> Image.Image:
-        """创建文本水印"""
+        """创建文本水印（简化版本，修复位置问题并提高性能）"""
         # 创建副本以避免修改原图
         watermarked = image.copy()
         
@@ -140,7 +150,7 @@ class WatermarkManager:
         # 获取字体
         font = self.get_font(scaled_font_size)
         
-        # 创建文本图层
+        # 创建与原图相同大小的文本图层
         text_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(text_layer)
         
@@ -149,24 +159,65 @@ class WatermarkManager:
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        # 计算位置
-        x, y = self.calculate_position(image.size, (text_width, text_height))
+        # 计算基础位置（使用原图尺寸）
+        base_x, base_y = self.calculate_position(image.size, (text_width, text_height))
         
-        # 绘制文本
-        color = self.hex_to_rgba(self.text_color, self.text_opacity)
-        draw.text((x, y), self.watermark_text, font=font, fill=color)
-        
-        # 应用旋转
-        if self.rotation_angle != 0:
-            text_layer = text_layer.rotate(self.rotation_angle, expand=1)
-            # 重新计算位置以保持中心对齐
-            new_x = (watermarked.size[0] - text_layer.size[0]) // 2
-            new_y = (watermarked.size[1] - text_layer.size[1]) // 2
+        # 绘制阴影效果（如果启用）- 简化版本
+        if self.enable_shadow:
+            shadow_x = base_x + self.shadow_offset_x
+            shadow_y = base_y + self.shadow_offset_y
+            shadow_color = self.hex_to_rgba(self.shadow_color, max(30, self.text_opacity - 20))  # 阴影稍微透明
             
-            # 创建新的文本图层
-            rotated_layer = Image.new('RGBA', watermarked.size, (0, 0, 0, 0))
-            rotated_layer.paste(text_layer, (new_x, new_y), text_layer)
-            text_layer = rotated_layer
+            # 简单阴影：直接绘制，无模糊效果以提高性能
+            draw.text((shadow_x, shadow_y), self.watermark_text, font=font, fill=shadow_color)
+        
+        # 绘制描边效果（如果启用）- 简化版本
+        if self.enable_stroke:
+            stroke_color = self.hex_to_rgba(self.stroke_color, self.text_opacity)
+            
+            # 简化的描边：只绘制4个方向和4个对角线方向
+            offsets = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+            for stroke_layer in range(self.stroke_width):
+                for dx, dy in offsets:
+                    stroke_x = base_x + dx * (stroke_layer + 1)
+                    stroke_y = base_y + dy * (stroke_layer + 1)
+                    draw.text((stroke_x, stroke_y), self.watermark_text, font=font, fill=stroke_color)
+        
+        # 绘制主文本
+        main_color = self.hex_to_rgba(self.text_color, self.text_opacity)
+        draw.text((base_x, base_y), self.watermark_text, font=font, fill=main_color)
+        
+        # 应用旋转（如果需要）
+        if self.rotation_angle != 0:
+            # 创建临时图层进行旋转
+            temp_layer = text_layer.rotate(self.rotation_angle, expand=True)
+            
+            # 计算旋转后的居中位置
+            new_x = (image.size[0] - temp_layer.size[0]) // 2
+            new_y = (image.size[1] - temp_layer.size[1]) // 2
+            
+            # 创建最终图层
+            final_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
+            
+            # 确保在边界内
+            if (new_x >= 0 and new_y >= 0 and 
+                new_x + temp_layer.size[0] <= image.size[0] and 
+                new_y + temp_layer.size[1] <= image.size[1]):
+                final_layer.paste(temp_layer, (new_x, new_y), temp_layer)
+            else:
+                # 如果旋转后超出边界，裁剪到合适大小
+                crop_left = max(0, -new_x)
+                crop_top = max(0, -new_y)
+                crop_right = min(temp_layer.size[0], temp_layer.size[0] + image.size[0] - new_x - temp_layer.size[0])
+                crop_bottom = min(temp_layer.size[1], temp_layer.size[1] + image.size[1] - new_y - temp_layer.size[1])
+                
+                if crop_right > crop_left and crop_bottom > crop_top:
+                    cropped = temp_layer.crop((crop_left, crop_top, crop_right, crop_bottom))
+                    paste_x = max(0, new_x)
+                    paste_y = max(0, new_y)
+                    final_layer.paste(cropped, (paste_x, paste_y), cropped)
+            
+            text_layer = final_layer
         
         # 合并图层
         if watermarked.mode != 'RGBA':
@@ -266,7 +317,16 @@ class WatermarkManager:
             'custom_x': self.custom_x,
             'custom_y': self.custom_y,
             'rotation_angle': self.rotation_angle,
-            'watermark_type': self.watermark_type
+            'watermark_type': self.watermark_type,
+            # 文本样式效果
+            'enable_shadow': self.enable_shadow,
+            'shadow_color': self.shadow_color,
+            'shadow_offset_x': self.shadow_offset_x,
+            'shadow_offset_y': self.shadow_offset_y,
+            'shadow_blur': self.shadow_blur,
+            'enable_stroke': self.enable_stroke,
+            'stroke_color': self.stroke_color,
+            'stroke_width': self.stroke_width
         }
     
     def load_settings(self, settings: dict):

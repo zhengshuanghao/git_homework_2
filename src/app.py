@@ -222,6 +222,94 @@ class WatermarkApp:
         opacity_label = ttk.Label(scrollable_frame, textvariable=self.text_opacity)
         opacity_label.pack(anchor=tk.W)
         
+        # 文本样式效果设置
+        style_frame = ttk.LabelFrame(scrollable_frame, text="文本样式效果", padding=5)
+        style_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # 阴影效果
+        shadow_frame = ttk.LabelFrame(style_frame, text="阴影效果", padding=5)
+        shadow_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.enable_shadow = tk.BooleanVar(value=False)
+        ttk.Checkbutton(shadow_frame, text="启用阴影", variable=self.enable_shadow,
+                       command=self.toggle_shadow_controls).pack(anchor=tk.W)
+        
+        # 阴影参数框架
+        self.shadow_params_frame = ttk.Frame(shadow_frame)
+        self.shadow_params_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        # 阴影颜色
+        shadow_color_frame = ttk.Frame(self.shadow_params_frame)
+        shadow_color_frame.pack(fill=tk.X, pady=(0, 3))
+        
+        self.shadow_color = tk.StringVar(value="#808080")
+        ttk.Label(shadow_color_frame, text="阴影颜色:").pack(side=tk.LEFT)
+        self.shadow_color_display = tk.Label(shadow_color_frame, bg=self.shadow_color.get(), 
+                                           width=2, height=1, relief=tk.RAISED)
+        self.shadow_color_display.pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(shadow_color_frame, text="选择", 
+                  command=self.choose_shadow_color).pack(side=tk.RIGHT, padx=(0, 5))
+        
+        # 阴影偏移
+        shadow_offset_frame = ttk.Frame(self.shadow_params_frame)
+        shadow_offset_frame.pack(fill=tk.X, pady=(0, 3))
+        
+        ttk.Label(shadow_offset_frame, text="阴影偏移:").pack(side=tk.LEFT)
+        self.shadow_offset_x = tk.IntVar(value=2)
+        self.shadow_offset_y = tk.IntVar(value=2)
+        ttk.Label(shadow_offset_frame, text="X:").pack(side=tk.LEFT, padx=(10, 2))
+        ttk.Spinbox(shadow_offset_frame, from_=-20, to=20, textvariable=self.shadow_offset_x, width=5).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(shadow_offset_frame, text="Y:").pack(side=tk.LEFT, padx=(5, 2))
+        ttk.Spinbox(shadow_offset_frame, from_=-20, to=20, textvariable=self.shadow_offset_y, width=5).pack(side=tk.LEFT)
+        
+        # 阴影模糊（已简化为固定效果以提高性能）
+        shadow_blur_frame = ttk.Frame(self.shadow_params_frame)
+        shadow_blur_frame.pack(fill=tk.X, pady=(0, 3))
+        
+        ttk.Label(shadow_blur_frame, text="阴影强度:").pack(anchor=tk.W)
+        self.shadow_blur = tk.IntVar(value=1)
+        shadow_blur_scale = ttk.Scale(shadow_blur_frame, from_=1, to=3, variable=self.shadow_blur, orient=tk.HORIZONTAL)
+        shadow_blur_scale.pack(fill=tk.X, pady=(2, 0))
+        ttk.Label(shadow_blur_frame, text="(已优化为简洁效果)", font=('Arial', 8)).pack(anchor=tk.W)
+        
+        # 描边效果
+        stroke_frame = ttk.LabelFrame(style_frame, text="描边效果", padding=5)
+        stroke_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        self.enable_stroke = tk.BooleanVar(value=False)
+        ttk.Checkbutton(stroke_frame, text="启用描边", variable=self.enable_stroke,
+                       command=self.toggle_stroke_controls).pack(anchor=tk.W)
+        
+        # 描边参数框架
+        self.stroke_params_frame = ttk.Frame(stroke_frame)
+        self.stroke_params_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        # 描边颜色
+        stroke_color_frame = ttk.Frame(self.stroke_params_frame)
+        stroke_color_frame.pack(fill=tk.X, pady=(0, 3))
+        
+        self.stroke_color = tk.StringVar(value="#FFFFFF")
+        ttk.Label(stroke_color_frame, text="描边颜色:").pack(side=tk.LEFT)
+        self.stroke_color_display = tk.Label(stroke_color_frame, bg=self.stroke_color.get(), 
+                                           width=2, height=1, relief=tk.RAISED)
+        self.stroke_color_display.pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(stroke_color_frame, text="选择", 
+                  command=self.choose_stroke_color).pack(side=tk.RIGHT, padx=(0, 5))
+        
+        # 描边宽度
+        stroke_width_frame = ttk.Frame(self.stroke_params_frame)
+        stroke_width_frame.pack(fill=tk.X, pady=(0, 3))
+        
+        ttk.Label(stroke_width_frame, text="描边宽度:").pack(anchor=tk.W)
+        self.stroke_width = tk.IntVar(value=2)
+        stroke_width_scale = ttk.Scale(stroke_width_frame, from_=1, to=5, variable=self.stroke_width, orient=tk.HORIZONTAL)
+        stroke_width_scale.pack(fill=tk.X, pady=(2, 0))
+        ttk.Label(stroke_width_frame, text="(建议使用1-3像素)", font=('Arial', 8)).pack(anchor=tk.W)
+        
+        # 初始化控件状态
+        self.toggle_shadow_controls()
+        self.toggle_stroke_controls()
+        
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
@@ -490,7 +578,9 @@ class WatermarkApp:
         for var in [self.watermark_text, self.font_family, self.font_size, self.font_bold, 
                    self.font_italic, self.text_color, self.text_opacity, self.position_var,
                    self.custom_x, self.custom_y, self.rotation_angle, self.image_scale, 
-                   self.image_opacity, self.watermark_image_path]:
+                   self.image_opacity, self.watermark_image_path, self.enable_shadow,
+                   self.shadow_color, self.shadow_offset_x, self.shadow_offset_y, self.shadow_blur,
+                   self.enable_stroke, self.stroke_color, self.stroke_width]:
             var.trace('w', self.on_watermark_change)
         
         # 画布点击事件（用于拖拽定位水印）
@@ -742,15 +832,18 @@ class WatermarkApp:
             self.template_listbox.insert(tk.END, template)
     
     def on_watermark_change(self, *args):
-        """水印设置变化事件"""
+        """水印设置变化事件（带防抖动）"""
         # 更新水印管理器设置
         settings = self.get_current_watermark_settings()
         self.watermark_manager.load_settings(settings)
         
-        # 刷新预览
+        # 取消之前的延迟更新
+        if hasattr(self, '_update_timer'):
+            self.root.after_cancel(self._update_timer)
+        
+        # 设置新的延迟更新（防抖动）
         if self.preview_image:
-            # 延迟更新以避免频繁刷新
-            self.root.after_idle(self.update_preview)
+            self._update_timer = self.root.after(200, self.update_preview)  # 200ms防抖动
     
     def on_canvas_click(self, event):
         """画布点击事件"""
@@ -802,8 +895,24 @@ class WatermarkApp:
         self.custom_y.set(settings.get('custom_y', 50))
         self.rotation_angle.set(settings.get('rotation_angle', 0))
         
-        # 更新颜色显示
+        # 更新文本样式效果设置
+        self.enable_shadow.set(settings.get('enable_shadow', False))
+        self.shadow_color.set(settings.get('shadow_color', '#808080'))
+        self.shadow_offset_x.set(settings.get('shadow_offset_x', 2))
+        self.shadow_offset_y.set(settings.get('shadow_offset_y', 2))
+        self.shadow_blur.set(settings.get('shadow_blur', 1))
+        self.enable_stroke.set(settings.get('enable_stroke', False))
+        self.stroke_color.set(settings.get('stroke_color', '#FFFFFF'))
+        self.stroke_width.set(settings.get('stroke_width', 2))
+        
+        # 更新颜色显示控件
         self.color_display.config(bg=self.text_color.get())
+        self.shadow_color_display.config(bg=self.shadow_color.get())
+        self.stroke_color_display.config(bg=self.stroke_color.get())
+        
+        # 更新控件状态
+        self.toggle_shadow_controls()
+        self.toggle_stroke_controls()
     
     def export_images(self):
         """导出图片"""
@@ -906,7 +1015,16 @@ class WatermarkApp:
             'custom_x': self.custom_x.get(),
             'custom_y': self.custom_y.get(),
             'rotation_angle': self.rotation_angle.get(),
-            'watermark_type': "text" if self.watermark_text.get() else "image"
+            'watermark_type': "text" if self.watermark_text.get() else "image",
+            # 文本样式效果
+            'enable_shadow': self.enable_shadow.get(),
+            'shadow_color': self.shadow_color.get(),
+            'shadow_offset_x': self.shadow_offset_x.get(),
+            'shadow_offset_y': self.shadow_offset_y.get(),
+            'shadow_blur': self.shadow_blur.get(),
+            'enable_stroke': self.enable_stroke.get(),
+            'stroke_color': self.stroke_color.get(),
+            'stroke_width': self.stroke_width.get()
         }
     
     def apply_watermark_settings(self, settings: dict):
@@ -989,3 +1107,39 @@ class WatermarkApp:
             params['keep_aspect_ratio'] = self.keep_aspect_ratio.get()
         
         return params
+    
+    def toggle_shadow_controls(self):
+        """切换阴影控件的启用/禁用状态"""
+        if self.enable_shadow.get():
+            # 启用阴影控件
+            for child in self.shadow_params_frame.winfo_children():
+                self._enable_widget(child)
+        else:
+            # 禁用阴影控件
+            for child in self.shadow_params_frame.winfo_children():
+                self._disable_widget(child)
+    
+    def toggle_stroke_controls(self):
+        """切换描边控件的启用/禁用状态"""
+        if self.enable_stroke.get():
+            # 启用描边控件
+            for child in self.stroke_params_frame.winfo_children():
+                self._enable_widget(child)
+        else:
+            # 禁用描边控件
+            for child in self.stroke_params_frame.winfo_children():
+                self._disable_widget(child)
+    
+    def choose_shadow_color(self):
+        """选择阴影颜色"""
+        color = colorchooser.askcolor(initialcolor=self.shadow_color.get())[1]
+        if color:
+            self.shadow_color.set(color)
+            self.shadow_color_display.config(bg=color)
+    
+    def choose_stroke_color(self):
+        """选择描边颜色"""
+        color = colorchooser.askcolor(initialcolor=self.stroke_color.get())[1]
+        if color:
+            self.stroke_color.set(color)
+            self.stroke_color_display.config(bg=color)

@@ -36,6 +36,10 @@ class ImageProcessor:
                 return None
             
             image = Image.open(file_path)
+            
+            # 处理EXIF方向信息，修复图片旋转问题
+            image = self.fix_image_orientation(image)
+            
             # 确保图像是RGB模式（处理透明通道）
             if image.mode in ('RGBA', 'LA'):
                 # 如果有透明通道，保留RGBA模式
@@ -54,6 +58,51 @@ class ImageProcessor:
         except Exception as e:
             print(f"Error loading image {file_path}: {e}")
             return None
+    
+    def fix_image_orientation(self, image: Image.Image) -> Image.Image:
+        """修复图片方向（处理EXIF旋转信息）"""
+        try:
+            # 获取EXIF数据
+            if hasattr(image, '_getexif') and image._getexif() is not None:
+                exif = image._getexif()
+                orientation = exif.get(0x0112)  # Orientation标签
+                
+                if orientation == 2:
+                    # 水平翻转
+                    image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                elif orientation == 3:
+                    # 旋转180度
+                    image = image.rotate(180, expand=True)
+                elif orientation == 4:
+                    # 垂直翻转
+                    image = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+                elif orientation == 5:
+                    # 水平翻转后逆时针旋转90度
+                    image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                    image = image.rotate(90, expand=True)
+                elif orientation == 6:
+                    # 逆时针旋转90度
+                    image = image.rotate(-90, expand=True)
+                elif orientation == 7:
+                    # 水平翻转后顺时针旋转90度
+                    image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                    image = image.rotate(-90, expand=True)
+                elif orientation == 8:
+                    # 顺时针旋转90度
+                    image = image.rotate(90, expand=True)
+            
+            # 对于更新版本的Pillow，使用ImageOps.exif_transpose
+            try:
+                from PIL import ImageOps
+                image = ImageOps.exif_transpose(image)
+            except (AttributeError, ImportError):
+                # 如果不支持exif_transpose，使用上面的手动处理
+                pass
+                
+        except Exception as e:
+            print(f"Warning: Could not fix image orientation: {e}")
+        
+        return image
     
     def create_preview(self, image: Image.Image, max_size: Optional[Tuple[int, int]] = None) -> Image.Image:
         """创建预览图像（缩放到合适大小）"""
