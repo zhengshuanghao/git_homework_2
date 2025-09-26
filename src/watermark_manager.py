@@ -52,18 +52,30 @@ class WatermarkManager:
         self.enable_stroke = False
         self.stroke_color = "#FFFFFF"
         self.stroke_width = 2
+        
+        # 图片水印位置设置（独立于文本水印）
+        self.image_position = "bottom_right"
+        self.image_custom_x = 90
+        self.image_custom_y = 90
+        self.image_rotation_angle = 0
     
     def get_font(self, size: Optional[int] = None) -> ImageFont.FreeTypeFont:
-        """获取字体对象"""
+        """获取字体对象（支持中英文混合显示）"""
         if size is None:
             size = self.font_size
         
         try:
-            # 尝试系统字体
+            # 检查文本中是否包含中文字符
+            has_chinese = self._has_chinese_chars(self.watermark_text)
             font_name = self.font_family
             
-            # Windows字体路径
-            if os.name == 'nt':
+            # 如果选择了英文字体但文本包含中文，自动使用支持中文的字体
+            if has_chinese and font_name in ["Arial", "Times New Roman", "Helvetica", "Courier"]:
+                print(f"检测到中文字符，从 {font_name} 切换到微软雅黑")
+                font_name = "微软雅黑"  # Windows下默认中文字体
+            
+            # 字体路径映射
+            if os.name == 'nt':  # Windows
                 font_paths = {
                     "Arial": "C:/Windows/Fonts/arial.ttf",
                     "Times New Roman": "C:/Windows/Fonts/times.ttf",
@@ -73,23 +85,66 @@ class WatermarkManager:
                     "宋体": "C:/Windows/Fonts/simsun.ttc",
                     "黑体": "C:/Windows/Fonts/simhei.ttf"
                 }
-            else:
-                # macOS/Linux字体路径
+            else:  # macOS/Linux
                 font_paths = {
                     "Arial": "/System/Library/Fonts/Arial.ttf",
                     "Times New Roman": "/System/Library/Fonts/Times New Roman.ttf",
                     "Helvetica": "/System/Library/Fonts/Helvetica.ttc",
-                    "Courier": "/System/Library/Fonts/Courier New.ttf"
+                    "Courier": "/System/Library/Fonts/Courier New.ttf",
+                    "微软雅黑": "/System/Library/Fonts/PingFang.ttc",  # macOS中文字体
+                    "宋体": "/System/Library/Fonts/Songti.ttc",
+                    "黑体": "/System/Library/Fonts/Heiti.ttc"
                 }
             
             font_path = font_paths.get(font_name)
             if font_path and os.path.exists(font_path):
                 return ImageFont.truetype(font_path, size)
             
-            # 如果找不到指定字体，使用默认字体
+            # 如果找不到指定字体，尝试使用系统默认中文字体
+            if has_chinese:
+                return self._get_fallback_chinese_font(size)
+            
+            # 否则使用PIL默认字体
             return ImageFont.load_default()
-        except Exception:
+            
+        except Exception as e:
+            print(f"字体加载失败: {e}")
             return ImageFont.load_default()
+    
+    def _has_chinese_chars(self, text: str) -> bool:
+        """检查文本是否包含中文字符"""
+        for char in text:
+            if '\u4e00' <= char <= '\u9fff':  # 中文Unicode范围
+                return True
+        return False
+    
+    def _get_fallback_chinese_font(self, size: int) -> ImageFont.FreeTypeFont:
+        """获取备用中文字体"""
+        chinese_fonts = []
+        
+        if os.name == 'nt':  # Windows
+            chinese_fonts = [
+                "C:/Windows/Fonts/msyh.ttc",      # 微软雅黑
+                "C:/Windows/Fonts/simsun.ttc",    # 宋体
+                "C:/Windows/Fonts/simhei.ttf",    # 黑体
+                "C:/Windows/Fonts/simkai.ttf",    # 楷体
+            ]
+        else:  # macOS/Linux
+            chinese_fonts = [
+                "/System/Library/Fonts/PingFang.ttc",
+                "/System/Library/Fonts/Songti.ttc", 
+                "/System/Library/Fonts/Heiti.ttc",
+            ]
+        
+        for font_path in chinese_fonts:
+            try:
+                if os.path.exists(font_path):
+                    return ImageFont.truetype(font_path, size)
+            except Exception:
+                continue
+        
+        print("警告: 未找到合适的中文字体，使用默认字体")
+        return ImageFont.load_default()
     
     def hex_to_rgba(self, hex_color: str, opacity: int) -> Tuple[int, int, int, int]:
         """将十六进制颜色转换为RGBA"""
@@ -127,6 +182,38 @@ class WatermarkManager:
             y = int(img_height * self.custom_y / 100) - wm_height // 2
         else:
             x, y = positions_map.get(position, positions_map['center'])
+        
+        # 确保水印不超出图像边界
+        x = max(0, min(x, img_width - wm_width))
+        y = max(0, min(y, img_height - wm_height))
+        
+        return x, y
+    
+    def calculate_image_position(self, image_size: Tuple[int, int], 
+                               watermark_size: Tuple[int, int]) -> Tuple[int, int]:
+        """计算图片水印位置（使用独立的位置设置）"""
+        img_width, img_height = image_size
+        wm_width, wm_height = watermark_size
+        
+        # 图片水印预设位置
+        positions_map = {
+            'top_left': (20, 20),
+            'top_center': ((img_width - wm_width) // 2, 20),
+            'top_right': (img_width - wm_width - 20, 20),
+            'middle_left': (20, (img_height - wm_height) // 2),
+            'center': ((img_width - wm_width) // 2, (img_height - wm_height) // 2),
+            'middle_right': (img_width - wm_width - 20, (img_height - wm_height) // 2),
+            'bottom_left': (20, img_height - wm_height - 20),
+            'bottom_center': ((img_width - wm_width) // 2, img_height - wm_height - 20),
+            'bottom_right': (img_width - wm_width - 20, img_height - wm_height - 20)
+        }
+        
+        if self.image_position == 'custom':
+            # 自定义位置（百分比）
+            x = int(img_width * self.image_custom_x / 100) - wm_width // 2
+            y = int(img_height * self.image_custom_y / 100) - wm_height // 2
+        else:
+            x, y = positions_map.get(self.image_position, positions_map['bottom_right'])
         
         # 确保水印不超出图像边界
         x = max(0, min(x, img_width - wm_width))
@@ -255,12 +342,12 @@ class WatermarkManager:
                 alpha = alpha.point(lambda p: int(p * self.image_opacity / 100))
                 watermark_img.putalpha(alpha)
             
-            # 计算位置
-            x, y = self.calculate_position(image.size, watermark_img.size)
+            # 使用图片水印专用的位置计算
+            x, y = self.calculate_image_position(image.size, watermark_img.size)
             
-            # 应用旋转
-            if self.rotation_angle != 0:
-                watermark_img = watermark_img.rotate(self.rotation_angle, expand=True)
+            # 应用旋转（使用图片水印专用角度）
+            if self.image_rotation_angle != 0:
+                watermark_img = watermark_img.rotate(self.image_rotation_angle, expand=True)
                 # 重新计算位置
                 x = x - (watermark_img.size[0] - new_size[0]) // 2
                 y = y - (watermark_img.size[1] - new_size[1]) // 2
@@ -326,7 +413,12 @@ class WatermarkManager:
             'shadow_blur': self.shadow_blur,
             'enable_stroke': self.enable_stroke,
             'stroke_color': self.stroke_color,
-            'stroke_width': self.stroke_width
+            'stroke_width': self.stroke_width,
+            # 图片水印位置设置
+            'image_position': self.image_position,
+            'image_custom_x': self.image_custom_x,
+            'image_custom_y': self.image_custom_y,
+            'image_rotation_angle': self.image_rotation_angle
         }
     
     def load_settings(self, settings: dict):

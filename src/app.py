@@ -151,11 +151,8 @@ class WatermarkApp:
         # 文本水印页面
         self.create_text_watermark_tab(notebook)
         
-        # 图片水印页面
+        # 图片水印页面（包含位置设置）
         self.create_image_watermark_tab(notebook)
-        
-        # 位置设置页面
-        self.create_position_tab(notebook)
         
         # 导出设置页面
         self.create_export_tab(notebook)
@@ -164,22 +161,54 @@ class WatermarkApp:
         self.create_template_tab(notebook)
     
     def create_text_watermark_tab(self, parent):
-        """创建文本水印设置页面"""
+        """创建文本水印设置页面（集成位置设置）"""
         text_frame = ttk.Frame(parent)
         parent.add(text_frame, text="文本水印")
         
         # 创建滚动视图
-        canvas = tk.Canvas(text_frame)
-        scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=canvas.yview)
+        canvas = tk.Canvas(text_frame, highlightthickness=0)
+        v_scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=canvas.yview)
+        h_scrollbar = ttk.Scrollbar(text_frame, orient="horizontal", command=canvas.xview)
         scrollable_frame = ttk.Frame(canvas)
         
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        # 绑定滚动事件
+        def _bound_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<Shift-MouseWheel>", _on_h_mousewheel)
+            
+        def _unbound_to_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Shift-MouseWheel>")
+            
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            
+        def _on_h_mousewheel(event):
+            canvas.xview_scroll(int(-1*(event.delta/120)), "units")
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind('<Enter>', _bound_to_mousewheel)
+        canvas.bind('<Leave>', _unbound_to_mousewheel)
+        
+        # 动态调整canvas窗口大小
+        def _configure_scrollable_frame(event):
+            # 更新滚动区域
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            # 确保frame至少与canvas一样宽
+            canvas_width = canvas.winfo_width()
+            frame_width = scrollable_frame.winfo_reqwidth()
+            if frame_width < canvas_width:
+                canvas.itemconfig("scrollable_window", width=canvas_width)
+        
+        def _configure_canvas(event):
+            # 当canvas大小改变时，调整frame的宽度
+            canvas_width = canvas.winfo_width()
+            canvas.itemconfig("scrollable_window", width=canvas_width)
+        
+        scrollable_frame.bind("<Configure>", _configure_scrollable_frame)
+        canvas.bind('<Configure>', _configure_canvas)
+        
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", tags="scrollable_window")
+        canvas.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
         
         # 水印文本
         ttk.Label(scrollable_frame, text="水印文本:").pack(anchor=tk.W, pady=(0, 5))
@@ -325,50 +354,9 @@ class WatermarkApp:
         stroke_width_scale.pack(fill=tk.X, pady=(2, 0))
         ttk.Label(stroke_width_frame, text="(建议使用1-3像素)", font=('Arial', 8)).pack(anchor=tk.W)
         
-        # 初始化控件状态
-        self.toggle_shadow_controls()
-        self.toggle_stroke_controls()
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-    def create_image_watermark_tab(self, parent):
-        """创建图片水印设置页面"""
-        image_frame = ttk.Frame(parent)
-        parent.add(image_frame, text="图片水印")
-        
-        # 图片选择
-        ttk.Label(image_frame, text="水印图片:").pack(anchor=tk.W, pady=(0, 5))
-        
-        select_frame = ttk.Frame(image_frame)
-        select_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.watermark_image_path = tk.StringVar()
-        ttk.Entry(select_frame, textvariable=self.watermark_image_path, state=tk.DISABLED).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Button(select_frame, text="选择", command=self.select_watermark_image).pack(side=tk.RIGHT, padx=(5, 0))
-        
-        # 图片缩放
-        ttk.Label(image_frame, text="缩放比例:").pack(anchor=tk.W, pady=(10, 5))
-        self.image_scale = tk.IntVar(value=50)
-        scale_scale = ttk.Scale(image_frame, from_=10, to=200, variable=self.image_scale, orient=tk.HORIZONTAL)
-        scale_scale.pack(fill=tk.X, pady=(0, 5))
-        
-        scale_label = ttk.Label(image_frame, textvariable=self.image_scale)
-        scale_label.pack(anchor=tk.W)
-        
-        # 图片透明度
-        ttk.Label(image_frame, text="透明度:").pack(anchor=tk.W, pady=(10, 5))
-        self.image_opacity = tk.IntVar(value=80)
-        img_opacity_scale = ttk.Scale(image_frame, from_=0, to=100, variable=self.image_opacity, orient=tk.HORIZONTAL)
-        img_opacity_scale.pack(fill=tk.X, pady=(0, 5))
-        
-        img_opacity_label = ttk.Label(image_frame, textvariable=self.image_opacity)
-        img_opacity_label.pack(anchor=tk.W)
-        
-    def create_position_tab(self, parent):
-        """创建位置设置页面"""
-        position_frame = ttk.Frame(parent)
-        parent.add(position_frame, text="位置设置")
+        # 水印位置设置（集成到文本水印页面）
+        position_frame = ttk.LabelFrame(scrollable_frame, text="水印位置设置", padding=5)
+        position_frame.pack(fill=tk.X, pady=(10, 5))
         
         # 预设位置 - 九宫格
         ttk.Label(position_frame, text="预设位置:").pack(anchor=tk.W, pady=(0, 5))
@@ -387,32 +375,203 @@ class WatermarkApp:
         for i, (text, value) in enumerate(positions):
             row, col = i // 3, i % 3
             ttk.Radiobutton(grid_frame, text=text, variable=self.position_var, 
-                           value=value).grid(row=row, column=col, padx=2, pady=2)
+                           value=value).grid(row=row, column=col, padx=3, pady=2, sticky="w")
         
         # 自定义位置
-        ttk.Label(position_frame, text="自定义位置:").pack(anchor=tk.W, pady=(20, 5))
+        custom_pos_frame = ttk.Frame(position_frame)
+        custom_pos_frame.pack(fill=tk.X, pady=(10, 5))
         
-        pos_frame = ttk.Frame(position_frame)
-        pos_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        ttk.Label(pos_frame, text="X:").pack(side=tk.LEFT)
+        ttk.Label(custom_pos_frame, text="自定义位置:").pack(side=tk.LEFT)
         self.custom_x = tk.IntVar(value=50)
-        x_spin = ttk.Spinbox(pos_frame, from_=0, to=100, textvariable=self.custom_x, width=10)
-        x_spin.pack(side=tk.LEFT, padx=(5, 10))
-        
-        ttk.Label(pos_frame, text="Y:").pack(side=tk.LEFT)
         self.custom_y = tk.IntVar(value=50)
-        y_spin = ttk.Spinbox(pos_frame, from_=0, to=100, textvariable=self.custom_y, width=10)
-        y_spin.pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Label(custom_pos_frame, text="X:").pack(side=tk.LEFT, padx=(10, 2))
+        ttk.Spinbox(custom_pos_frame, from_=0, to=100, textvariable=self.custom_x, width=8).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(custom_pos_frame, text="Y:").pack(side=tk.LEFT, padx=(5, 2))
+        ttk.Spinbox(custom_pos_frame, from_=0, to=100, textvariable=self.custom_y, width=8).pack(side=tk.LEFT)
+        ttk.Label(custom_pos_frame, text="%").pack(side=tk.LEFT, padx=(5, 0))
         
         # 旋转角度
-        ttk.Label(position_frame, text="旋转角度:").pack(anchor=tk.W, pady=(20, 5))
-        self.rotation_angle = tk.IntVar(value=0)
-        rotation_scale = ttk.Scale(position_frame, from_=-180, to=180, variable=self.rotation_angle, orient=tk.HORIZONTAL)
-        rotation_scale.pack(fill=tk.X, pady=(0, 5))
+        rotation_frame = ttk.Frame(position_frame)
+        rotation_frame.pack(fill=tk.X, pady=(5, 0))
         
-        rotation_label = ttk.Label(position_frame, textvariable=self.rotation_angle)
-        rotation_label.pack(anchor=tk.W)
+        ttk.Label(rotation_frame, text="旋转角度:").pack(anchor=tk.W)
+        self.rotation_angle = tk.IntVar(value=0)
+        rotation_scale = ttk.Scale(rotation_frame, from_=-180, to=180, variable=self.rotation_angle, orient=tk.HORIZONTAL)
+        rotation_scale.pack(fill=tk.X, pady=(2, 0))
+        
+        rotation_label_frame = ttk.Frame(rotation_frame)
+        rotation_label_frame.pack(fill=tk.X)
+        rotation_label = ttk.Label(rotation_label_frame, textvariable=self.rotation_angle)
+        rotation_label.pack(side=tk.LEFT)
+        ttk.Label(rotation_label_frame, text="度").pack(side=tk.LEFT, padx=(2, 0))
+        
+        # 初始化控件状态
+        self.toggle_shadow_controls()
+        self.toggle_stroke_controls()
+        
+        # 布局滚动组件
+        canvas.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+        
+        # 配置网格权重
+        text_frame.grid_rowconfigure(0, weight=1)
+        text_frame.grid_columnconfigure(0, weight=1)
+        
+    def create_image_watermark_tab(self, parent):
+        """创建图片水印设置页面（包含位置设置）"""
+        image_frame = ttk.Frame(parent)
+        parent.add(image_frame, text="图片水印")
+        
+        # 创建滚动视图
+        canvas = tk.Canvas(image_frame, highlightthickness=0)
+        v_scrollbar = ttk.Scrollbar(image_frame, orient="vertical", command=canvas.yview)
+        h_scrollbar = ttk.Scrollbar(image_frame, orient="horizontal", command=canvas.xview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        # 绑定滚动事件
+        def _bound_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_img_mousewheel)
+            canvas.bind_all("<Shift-MouseWheel>", _on_img_h_mousewheel)
+            
+        def _unbound_to_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Shift-MouseWheel>")
+            
+        def _on_img_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            
+        def _on_img_h_mousewheel(event):
+            canvas.xview_scroll(int(-1*(event.delta/120)), "units")
+        
+        canvas.bind('<Enter>', _bound_to_mousewheel)
+        canvas.bind('<Leave>', _unbound_to_mousewheel)
+        
+        # 动态调整canvas窗口大小
+        def _configure_img_scrollable_frame(event):
+            # 更新滚动区域
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            # 确保frame至少与canvas一样宽
+            canvas_width = canvas.winfo_width()
+            frame_width = scrollable_frame.winfo_reqwidth()
+            if frame_width < canvas_width:
+                canvas.itemconfig("img_scrollable_window", width=canvas_width)
+        
+        def _configure_img_canvas(event):
+            # 当canvas大小改变时，调整frame的宽度
+            canvas_width = canvas.winfo_width()
+            canvas.itemconfig("img_scrollable_window", width=canvas_width)
+        
+        scrollable_frame.bind("<Configure>", _configure_img_scrollable_frame)
+        canvas.bind('<Configure>', _configure_img_canvas)
+        
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", tags="img_scrollable_window")
+        canvas.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        
+        # 图片选择
+        select_group = ttk.LabelFrame(scrollable_frame, text="水印图片选择", padding=5)
+        select_group.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Label(select_group, text="选择图片文件:").pack(anchor=tk.W, pady=(0, 5))
+        
+        select_frame = ttk.Frame(select_group)
+        select_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.watermark_image_path = tk.StringVar()
+        ttk.Entry(select_frame, textvariable=self.watermark_image_path, state=tk.DISABLED).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Button(select_frame, text="选择", command=self.select_watermark_image).pack(side=tk.RIGHT, padx=(5, 0))
+        
+        # 图片预览（小尺寸）
+        self.image_preview_label = ttk.Label(select_group, text="未选择图片")
+        self.image_preview_label.pack(pady=(5, 0))
+        
+        # 图片设置
+        settings_group = ttk.LabelFrame(scrollable_frame, text="图片设置", padding=5)
+        settings_group.pack(fill=tk.X, pady=(0, 10))
+        
+        # 图片缩放
+        ttk.Label(settings_group, text="缩放比例:").pack(anchor=tk.W, pady=(0, 5))
+        self.image_scale = tk.IntVar(value=50)
+        scale_frame = ttk.Frame(settings_group)
+        scale_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        scale_scale = ttk.Scale(scale_frame, from_=10, to=200, variable=self.image_scale, orient=tk.HORIZONTAL)
+        scale_scale.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        scale_label = ttk.Label(scale_frame, textvariable=self.image_scale, width=5)
+        scale_label.pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Label(scale_frame, text="%").pack(side=tk.RIGHT)
+        
+        # 图片透明度
+        ttk.Label(settings_group, text="透明度:").pack(anchor=tk.W, pady=(10, 5))
+        self.image_opacity = tk.IntVar(value=80)
+        opacity_frame = ttk.Frame(settings_group)
+        opacity_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        img_opacity_scale = ttk.Scale(opacity_frame, from_=0, to=100, variable=self.image_opacity, orient=tk.HORIZONTAL)
+        img_opacity_scale.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        opacity_label = ttk.Label(opacity_frame, textvariable=self.image_opacity, width=5)
+        opacity_label.pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Label(opacity_frame, text="%").pack(side=tk.RIGHT)
+        
+        # 图片水印位置设置
+        img_position_frame = ttk.LabelFrame(scrollable_frame, text="图片水印位置设置", padding=5)
+        img_position_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 预设位置 - 九宫格（为图片水印单独设置变量）
+        ttk.Label(img_position_frame, text="预设位置:").pack(anchor=tk.W, pady=(0, 5))
+        
+        img_grid_frame = ttk.Frame(img_position_frame)
+        img_grid_frame.pack(pady=(0, 10))
+        
+        self.image_position_var = tk.StringVar(value="bottom_right")
+        
+        positions = [
+            ("左上", "top_left"), ("正上", "top_center"), ("右上", "top_right"),
+            ("左中", "middle_left"), ("正中", "center"), ("右中", "middle_right"),
+            ("左下", "bottom_left"), ("正下", "bottom_center"), ("右下", "bottom_right")
+        ]
+        
+        for i, (text, value) in enumerate(positions):
+            row, col = i // 3, i % 3
+            ttk.Radiobutton(img_grid_frame, text=text, variable=self.image_position_var, 
+                           value=value).grid(row=row, column=col, padx=3, pady=2, sticky="w")
+        
+        # 自定义位置（为图片水印单独设置变量）
+        img_custom_pos_frame = ttk.Frame(img_position_frame)
+        img_custom_pos_frame.pack(fill=tk.X, pady=(5, 5))
+        
+        ttk.Label(img_custom_pos_frame, text="自定义位置:").pack(side=tk.LEFT)
+        self.image_custom_x = tk.IntVar(value=90)
+        self.image_custom_y = tk.IntVar(value=90)
+        ttk.Label(img_custom_pos_frame, text="X:").pack(side=tk.LEFT, padx=(10, 2))
+        ttk.Spinbox(img_custom_pos_frame, from_=0, to=100, textvariable=self.image_custom_x, width=8).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(img_custom_pos_frame, text="Y:").pack(side=tk.LEFT, padx=(5, 2))
+        ttk.Spinbox(img_custom_pos_frame, from_=0, to=100, textvariable=self.image_custom_y, width=8).pack(side=tk.LEFT)
+        ttk.Label(img_custom_pos_frame, text="%").pack(side=tk.LEFT, padx=(5, 0))
+        
+        # 图片旋转角度
+        img_rotation_frame = ttk.Frame(img_position_frame)
+        img_rotation_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Label(img_rotation_frame, text="旋转角度:").pack(anchor=tk.W)
+        self.image_rotation_angle = tk.IntVar(value=0)
+        img_rotation_scale = ttk.Scale(img_rotation_frame, from_=-180, to=180, variable=self.image_rotation_angle, orient=tk.HORIZONTAL)
+        img_rotation_scale.pack(fill=tk.X, pady=(2, 0))
+        
+        img_rotation_label_frame = ttk.Frame(img_rotation_frame)
+        img_rotation_label_frame.pack(fill=tk.X)
+        img_rotation_label = ttk.Label(img_rotation_label_frame, textvariable=self.image_rotation_angle)
+        img_rotation_label.pack(side=tk.LEFT)
+        ttk.Label(img_rotation_label_frame, text="度").pack(side=tk.LEFT, padx=(2, 0))
+        
+        # 布局滚动组件
+        canvas.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+        
+        # 配置网格权重
+        image_frame.grid_rowconfigure(0, weight=1)
+        image_frame.grid_columnconfigure(0, weight=1)
         
     def create_export_tab(self, parent):
         """创建导出设置页面"""
@@ -599,7 +758,8 @@ class WatermarkApp:
                    self.custom_x, self.custom_y, self.rotation_angle, self.image_scale, 
                    self.image_opacity, self.watermark_image_path, self.enable_shadow,
                    self.shadow_color, self.shadow_offset_x, self.shadow_offset_y, self.shadow_blur,
-                   self.enable_stroke, self.stroke_color, self.stroke_width]:
+                   self.enable_stroke, self.stroke_color, self.stroke_width,
+                   self.image_position_var, self.image_custom_x, self.image_custom_y, self.image_rotation_angle]:
             var.trace('w', self.on_watermark_change)
         
         # 画布点击事件（用于拖拽定位水印）
@@ -758,8 +918,9 @@ class WatermarkApp:
         if not self.preview_image:
             return
         
-        # 应用水印
-        watermarked_image = self.watermark_manager.apply_watermark(self.preview_image)
+        # 应用水印（使用当前水印类型）
+        watermark_type = self.get_current_watermark_type()
+        watermarked_image = self.watermark_manager.apply_watermark(self.preview_image, watermark_type)
         
         # 创建适合画布的预览图
         canvas_width = max(self.canvas.winfo_width(), 100)
@@ -800,6 +961,32 @@ class WatermarkApp:
         
         if file_path:
             self.watermark_image_path.set(file_path)
+            self.update_watermark_image_preview(file_path)
+    
+    def update_watermark_image_preview(self, image_path):
+        """更新水印图片预览"""
+        try:
+            # 加载图片并创建小预览
+            image = Image.open(image_path)
+            
+            # 创建缩略图（最大64x64像素）
+            image.thumbnail((64, 64), Image.Resampling.LANCZOS)
+            
+            # 转换为Tkinter格式
+            photo = ImageTk.PhotoImage(image)
+            
+            # 更新预览标签
+            filename = os.path.basename(image_path)
+            self.image_preview_label.configure(image=photo, text="", compound=tk.TOP)
+            self.image_preview_label.image = photo  # 保持引用防止被垃圾回收
+            
+            # 在标签下方显示文件名
+            preview_text = f"{filename}\n{image.size[0]}x{image.size[1]}"
+            self.image_preview_label.configure(text=preview_text, compound=tk.TOP)
+            
+        except Exception as e:
+            self.image_preview_label.configure(image="", text=f"预览失败:\n{str(e)}")
+            print(f"图片预览失败: {e}")
     
     def select_output_dir(self):
         """选择输出目录"""
@@ -842,6 +1029,28 @@ class WatermarkApp:
                 self.refresh_template_list()
             else:
                 messagebox.showerror("错误", "保存模板失败")
+    
+    def get_current_watermark_type(self):
+        """根据当前活动页面和内容获取水印类型"""
+        try:
+            # 首先检查是否有图片水印路径
+            if self.watermark_image_path.get() and os.path.exists(self.watermark_image_path.get()):
+                return "image"
+            # 然后检查是否有文本内容
+            elif self.watermark_text.get().strip():
+                return "text"
+            else:
+                # 根据当前选中的页面判断
+                current_tab = self.notebook.index(self.notebook.select())
+                if current_tab == 0:  # 文本水印页面
+                    return "text"
+                elif current_tab == 1:  # 图片水印页面
+                    return "image"
+                else:
+                    return "text"  # 默认文本
+        except:
+            return "text"
+    
     def load_template(self):
         """加载模板"""
         selection = self.template_listbox.curselection()
@@ -960,6 +1169,12 @@ class WatermarkApp:
         self.shadow_color_display.config(bg=self.shadow_color.get())
         self.stroke_color_display.config(bg=self.stroke_color.get())
         
+        # 更新图片水印设置
+        self.image_position_var.set(settings.get('image_position', 'bottom_right'))
+        self.image_custom_x.set(settings.get('image_custom_x', 90))
+        self.image_custom_y.set(settings.get('image_custom_y', 90))
+        self.image_rotation_angle.set(settings.get('image_rotation_angle', 0))
+        
         # 更新控件状态
         self.toggle_shadow_controls()
         self.toggle_stroke_controls()
@@ -1015,7 +1230,9 @@ class WatermarkApp:
                             )
                     
                     # 应用水印
-                    watermarked_image = self.watermark_manager.apply_watermark(processed_image)
+                    # 应用水印（使用当前设置的水印类型）
+                    watermark_type = settings.get('watermark_type', 'text')
+                    watermarked_image = self.watermark_manager.apply_watermark(processed_image, watermark_type)
                     
                     # 生成输出路径
                     output_path = self.file_manager.generate_output_path(
@@ -1065,7 +1282,7 @@ class WatermarkApp:
             'custom_x': self.custom_x.get(),
             'custom_y': self.custom_y.get(),
             'rotation_angle': self.rotation_angle.get(),
-            'watermark_type': "text" if self.watermark_text.get() else "image",
+            'watermark_type': self.get_current_watermark_type(),
             # 文本样式效果
             'enable_shadow': self.enable_shadow.get(),
             'shadow_color': self.shadow_color.get(),
@@ -1074,7 +1291,12 @@ class WatermarkApp:
             'shadow_blur': self.shadow_blur.get(),
             'enable_stroke': self.enable_stroke.get(),
             'stroke_color': self.stroke_color.get(),
-            'stroke_width': self.stroke_width.get()
+            'stroke_width': self.stroke_width.get(),
+            # 图片水印设置
+            'image_position': self.image_position_var.get(),
+            'image_custom_x': self.image_custom_x.get(),
+            'image_custom_y': self.image_custom_y.get(),
+            'image_rotation_angle': self.image_rotation_angle.get()
         }
     
     def apply_watermark_settings(self, settings: dict):
