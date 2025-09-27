@@ -270,9 +270,60 @@ class WatermarkApp:
         opacity_label = ttk.Label(scrollable_frame, textvariable=self.text_opacity)
         opacity_label.pack(anchor=tk.W)
         
+        # 水印位置设置（集成到文本水印页面）
+        position_frame = ttk.LabelFrame(scrollable_frame, text="水印位置设置", padding=5)
+        position_frame.pack(fill=tk.X, pady=(10, 5))
+        
+        # 预设位置 - 九宫格
+        ttk.Label(position_frame, text="预设位置:").pack(anchor=tk.W, pady=(0, 5))
+        
+        grid_frame = ttk.Frame(position_frame)
+        grid_frame.pack(pady=(0, 10))
+        
+        self.position_var = tk.StringVar(value="center")
+        
+        positions = [
+            ("左上", "top_left"), ("正上", "top_center"), ("右上", "top_right"),
+            ("左中", "middle_left"), ("正中", "center"), ("右中", "middle_right"),
+            ("左下", "bottom_left"), ("正下", "bottom_center"), ("右下", "bottom_right")
+        ]
+        
+        for i, (text, value) in enumerate(positions):
+            row, col = i // 3, i % 3
+            ttk.Radiobutton(grid_frame, text=text, variable=self.position_var, 
+                           value=value).grid(row=row, column=col, padx=3, pady=2, sticky="w")
+        
+        # 自定义位置
+        custom_pos_frame = ttk.Frame(position_frame)
+        custom_pos_frame.pack(fill=tk.X, pady=(10, 5))
+        
+        ttk.Label(custom_pos_frame, text="自定义位置:").pack(side=tk.LEFT)
+        self.custom_x = tk.IntVar(value=50)
+        self.custom_y = tk.IntVar(value=50)
+        ttk.Label(custom_pos_frame, text="X:").pack(side=tk.LEFT, padx=(10, 2))
+        ttk.Spinbox(custom_pos_frame, from_=0, to=100, textvariable=self.custom_x, width=8).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(custom_pos_frame, text="Y:").pack(side=tk.LEFT, padx=(5, 2))
+        ttk.Spinbox(custom_pos_frame, from_=0, to=100, textvariable=self.custom_y, width=8).pack(side=tk.LEFT)
+        ttk.Label(custom_pos_frame, text="%").pack(side=tk.LEFT, padx=(5, 0))
+        
+        # 旋转角度
+        rotation_frame = ttk.Frame(position_frame)
+        rotation_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Label(rotation_frame, text="旋转角度:").pack(anchor=tk.W)
+        self.rotation_angle = tk.IntVar(value=0)
+        rotation_scale = ttk.Scale(rotation_frame, from_=-180, to=180, variable=self.rotation_angle, orient=tk.HORIZONTAL)
+        rotation_scale.pack(fill=tk.X, pady=(2, 0))
+        
+        rotation_label_frame = ttk.Frame(rotation_frame)
+        rotation_label_frame.pack(fill=tk.X)
+        rotation_label = ttk.Label(rotation_label_frame, textvariable=self.rotation_angle)
+        rotation_label.pack(side=tk.LEFT)
+        ttk.Label(rotation_label_frame, text="度").pack(side=tk.LEFT, padx=(2, 0))
+        
         # 文本样式效果设置
         style_frame = ttk.LabelFrame(scrollable_frame, text="文本样式效果", padding=5)
-        style_frame.pack(fill=tk.X, pady=(10, 0))
+        style_frame.pack(fill=tk.X, pady=(5, 0))
         
         # 阴影效果
         shadow_frame = ttk.LabelFrame(style_frame, text="阴影效果", padding=5)
@@ -353,57 +404,6 @@ class WatermarkApp:
         stroke_width_scale = ttk.Scale(stroke_width_frame, from_=1, to=5, variable=self.stroke_width, orient=tk.HORIZONTAL)
         stroke_width_scale.pack(fill=tk.X, pady=(2, 0))
         ttk.Label(stroke_width_frame, text="(建议使用1-3像素)", font=('Arial', 8)).pack(anchor=tk.W)
-        
-        # 水印位置设置（集成到文本水印页面）
-        position_frame = ttk.LabelFrame(scrollable_frame, text="水印位置设置", padding=5)
-        position_frame.pack(fill=tk.X, pady=(10, 5))
-        
-        # 预设位置 - 九宫格
-        ttk.Label(position_frame, text="预设位置:").pack(anchor=tk.W, pady=(0, 5))
-        
-        grid_frame = ttk.Frame(position_frame)
-        grid_frame.pack(pady=(0, 10))
-        
-        self.position_var = tk.StringVar(value="center")
-        
-        positions = [
-            ("左上", "top_left"), ("正上", "top_center"), ("右上", "top_right"),
-            ("左中", "middle_left"), ("正中", "center"), ("右中", "middle_right"),
-            ("左下", "bottom_left"), ("正下", "bottom_center"), ("右下", "bottom_right")
-        ]
-        
-        for i, (text, value) in enumerate(positions):
-            row, col = i // 3, i % 3
-            ttk.Radiobutton(grid_frame, text=text, variable=self.position_var, 
-                           value=value).grid(row=row, column=col, padx=3, pady=2, sticky="w")
-        
-        # 自定义位置
-        custom_pos_frame = ttk.Frame(position_frame)
-        custom_pos_frame.pack(fill=tk.X, pady=(10, 5))
-        
-        ttk.Label(custom_pos_frame, text="自定义位置:").pack(side=tk.LEFT)
-        self.custom_x = tk.IntVar(value=50)
-        self.custom_y = tk.IntVar(value=50)
-        ttk.Label(custom_pos_frame, text="X:").pack(side=tk.LEFT, padx=(10, 2))
-        ttk.Spinbox(custom_pos_frame, from_=0, to=100, textvariable=self.custom_x, width=8).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Label(custom_pos_frame, text="Y:").pack(side=tk.LEFT, padx=(5, 2))
-        ttk.Spinbox(custom_pos_frame, from_=0, to=100, textvariable=self.custom_y, width=8).pack(side=tk.LEFT)
-        ttk.Label(custom_pos_frame, text="%").pack(side=tk.LEFT, padx=(5, 0))
-        
-        # 旋转角度
-        rotation_frame = ttk.Frame(position_frame)
-        rotation_frame.pack(fill=tk.X, pady=(5, 0))
-        
-        ttk.Label(rotation_frame, text="旋转角度:").pack(anchor=tk.W)
-        self.rotation_angle = tk.IntVar(value=0)
-        rotation_scale = ttk.Scale(rotation_frame, from_=-180, to=180, variable=self.rotation_angle, orient=tk.HORIZONTAL)
-        rotation_scale.pack(fill=tk.X, pady=(2, 0))
-        
-        rotation_label_frame = ttk.Frame(rotation_frame)
-        rotation_label_frame.pack(fill=tk.X)
-        rotation_label = ttk.Label(rotation_label_frame, textvariable=self.rotation_angle)
-        rotation_label.pack(side=tk.LEFT)
-        ttk.Label(rotation_label_frame, text="度").pack(side=tk.LEFT, padx=(2, 0))
         
         # 初始化控件状态
         self.toggle_shadow_controls()
@@ -992,7 +992,36 @@ class WatermarkApp:
         """选择输出目录"""
         dir_path = filedialog.askdirectory(title="选择输出目录")
         if dir_path:
+            # 检查是否选择了源文件夹
+            if self.selected_images and self._is_source_folder(dir_path):
+                result = messagebox.askyesno(
+                    "警告", 
+                    "您选择的输出目录包含源图片文件，这可能会覆盖原始图片。\n\n"
+                    "建议选择其他目录以避免意外覆盖原文件。\n\n"
+                    "是否继续使用此目录？",
+                    icon='warning'
+                )
+                if not result:
+                    return  # 用户选择不继续，不设置目录
+            
             self.output_dir.set(dir_path)
+    
+    def _is_source_folder(self, output_dir: str) -> bool:
+        """检查输出目录是否包含源图片文件"""
+        if not self.selected_images:
+            return False
+        
+        # 标准化路径以便比较
+        output_dir = os.path.normpath(output_dir).lower()
+        
+        for image_path in self.selected_images:
+            source_dir = os.path.normpath(os.path.dirname(image_path)).lower()
+            
+            # 检查是否是同一目录或父目录
+            if source_dir == output_dir or source_dir.startswith(output_dir + os.sep):
+                return True
+                
+        return False
     
     def start_export(self):
         """开始导出"""
@@ -1094,12 +1123,17 @@ class WatermarkApp:
         """水印设置变化事件（带防抖动）"""
         # 更新水印管理器设置
         settings = self.get_current_watermark_settings()
-        self.watermark_manager.load_settings(settings)
         
+        # 调试：打印斜体设置状态
+        if 'font_italic' in settings:
+            print(f"UI变化检测: font_italic={settings['font_italic']}")
+        
+        self.watermark_manager.load_settings(settings)
+
         # 取消之前的延迟更新
         if hasattr(self, '_update_timer'):
             self.root.after_cancel(self._update_timer)
-        
+
         # 设置新的延迟更新（防抖动）
         if self.preview_image:
             self._update_timer = self.root.after(200, self.update_preview)  # 200ms防抖动
@@ -1229,9 +1263,10 @@ class WatermarkApp:
                                 original_image, **resize_params
                             )
                     
-                    # 应用水印
-                    # 应用水印（使用当前设置的水印类型）
-                    watermark_type = settings.get('watermark_type', 'text')
+                    # 应用水印（获取当前设置的水印类型）
+                    current_settings = self.get_current_watermark_settings()
+                    self.watermark_manager.load_settings(current_settings)
+                    watermark_type = current_settings.get('watermark_type', 'text')
                     watermarked_image = self.watermark_manager.apply_watermark(processed_image, watermark_type)
                     
                     # 生成输出路径

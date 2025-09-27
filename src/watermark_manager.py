@@ -60,7 +60,7 @@ class WatermarkManager:
         self.image_rotation_angle = 0
     
     def get_font(self, size: Optional[int] = None) -> ImageFont.FreeTypeFont:
-        """获取字体对象（支持中英文混合显示）"""
+        """获取字体对象（支持中英文混合显示和字体样式）"""
         if size is None:
             size = self.font_size
         
@@ -74,31 +74,17 @@ class WatermarkManager:
                 print(f"检测到中文字符，从 {font_name} 切换到微软雅黑")
                 font_name = "微软雅黑"  # Windows下默认中文字体
             
-            # 字体路径映射
-            if os.name == 'nt':  # Windows
-                font_paths = {
-                    "Arial": "C:/Windows/Fonts/arial.ttf",
-                    "Times New Roman": "C:/Windows/Fonts/times.ttf",
-                    "Helvetica": "C:/Windows/Fonts/arial.ttf",
-                    "Courier": "C:/Windows/Fonts/cour.ttf",
-                    "微软雅黑": "C:/Windows/Fonts/msyh.ttc",
-                    "宋体": "C:/Windows/Fonts/simsun.ttc",
-                    "黑体": "C:/Windows/Fonts/simhei.ttf"
-                }
-            else:  # macOS/Linux
-                font_paths = {
-                    "Arial": "/System/Library/Fonts/Arial.ttf",
-                    "Times New Roman": "/System/Library/Fonts/Times New Roman.ttf",
-                    "Helvetica": "/System/Library/Fonts/Helvetica.ttc",
-                    "Courier": "/System/Library/Fonts/Courier New.ttf",
-                    "微软雅黑": "/System/Library/Fonts/PingFang.ttc",  # macOS中文字体
-                    "宋体": "/System/Library/Fonts/Songti.ttc",
-                    "黑体": "/System/Library/Fonts/Heiti.ttc"
-                }
+            # 获取带样式的字体路径
+            font_path = self._get_styled_font_path(font_name, has_chinese)
             
-            font_path = font_paths.get(font_name)
             if font_path and os.path.exists(font_path):
-                return ImageFont.truetype(font_path, size)
+                font = ImageFont.truetype(font_path, size)
+                return font
+            
+            # 如果找不到样式字体，尝试基础字体
+            base_font_path = self._get_base_font_path(font_name, has_chinese)
+            if base_font_path and os.path.exists(base_font_path):
+                return ImageFont.truetype(base_font_path, size)
             
             # 如果找不到指定字体，尝试使用系统默认中文字体
             if has_chinese:
@@ -110,6 +96,84 @@ class WatermarkManager:
         except Exception as e:
             print(f"字体加载失败: {e}")
             return ImageFont.load_default()
+    
+    def _get_styled_font_path(self, font_name: str, has_chinese: bool) -> Optional[str]:
+        """获取带样式的字体路径"""
+        # 中文字体通常不区分粗体斜体文件，使用基础字体
+        if has_chinese or font_name in ["微软雅黑", "宋体", "黑体"]:
+            return self._get_base_font_path(font_name, has_chinese)
+        
+        # 英文字体的样式变体
+        if os.name == 'nt':  # Windows
+            font_style_paths = {
+                "Arial": {
+                    (False, False): "C:/Windows/Fonts/arial.ttf",      # 普通
+                    (True, False): "C:/Windows/Fonts/arialbd.ttf",     # 粗体
+                    (False, True): "C:/Windows/Fonts/ariali.ttf",      # 斜体
+                    (True, True): "C:/Windows/Fonts/arialbi.ttf"       # 粗斜体
+                },
+                "Times New Roman": {
+                    (False, False): "C:/Windows/Fonts/times.ttf",
+                    (True, False): "C:/Windows/Fonts/timesbd.ttf",
+                    (False, True): "C:/Windows/Fonts/timesi.ttf",
+                    (True, True): "C:/Windows/Fonts/timesbi.ttf"
+                },
+                "Courier": {
+                    (False, False): "C:/Windows/Fonts/cour.ttf",
+                    (True, False): "C:/Windows/Fonts/courbd.ttf",
+                    (False, True): "C:/Windows/Fonts/couri.ttf",
+                    (True, True): "C:/Windows/Fonts/courbi.ttf"
+                }
+            }
+        else:  # macOS/Linux
+            font_style_paths = {
+                "Arial": {
+                    (False, False): "/System/Library/Fonts/Arial.ttf",
+                    (True, False): "/System/Library/Fonts/Arial Bold.ttf",
+                    (False, True): "/System/Library/Fonts/Arial Italic.ttf",
+                    (True, True): "/System/Library/Fonts/Arial Bold Italic.ttf"
+                },
+                "Times New Roman": {
+                    (False, False): "/System/Library/Fonts/Times New Roman.ttf",
+                    (True, False): "/System/Library/Fonts/Times New Roman Bold.ttf",
+                    (False, True): "/System/Library/Fonts/Times New Roman Italic.ttf",
+                    (True, True): "/System/Library/Fonts/Times New Roman Bold Italic.ttf"
+                }
+            }
+        
+        # 获取当前样式组合
+        style_key = (self.font_bold, self.font_italic)
+        
+        # 获取对应字体的样式路径
+        if font_name in font_style_paths:
+            return font_style_paths[font_name].get(style_key)
+        
+        return None
+    
+    def _get_base_font_path(self, font_name: str, has_chinese: bool) -> Optional[str]:
+        """获取基础字体路径"""
+        if os.name == 'nt':  # Windows
+            font_paths = {
+                "Arial": "C:/Windows/Fonts/arial.ttf",
+                "Times New Roman": "C:/Windows/Fonts/times.ttf",
+                "Helvetica": "C:/Windows/Fonts/arial.ttf",
+                "Courier": "C:/Windows/Fonts/cour.ttf",
+                "微软雅黑": "C:/Windows/Fonts/msyh.ttc",
+                "宋体": "C:/Windows/Fonts/simsun.ttc",
+                "黑体": "C:/Windows/Fonts/simhei.ttf"
+            }
+        else:  # macOS/Linux
+            font_paths = {
+                "Arial": "/System/Library/Fonts/Arial.ttf",
+                "Times New Roman": "/System/Library/Fonts/Times New Roman.ttf",
+                "Helvetica": "/System/Library/Fonts/Helvetica.ttc",
+                "Courier": "/System/Library/Fonts/Courier New.ttf",
+                "微软雅黑": "/System/Library/Fonts/PingFang.ttc",
+                "宋体": "/System/Library/Fonts/Songti.ttc",
+                "黑体": "/System/Library/Fonts/Heiti.ttc"
+            }
+        
+        return font_paths.get(font_name)
     
     def _has_chinese_chars(self, text: str) -> bool:
         """检查文本是否包含中文字符"""
@@ -426,3 +490,6 @@ class WatermarkManager:
         for key, value in settings.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+        
+        # 确保字体样式属性被正确设置
+        print(f"加载设置: font_bold={self.font_bold}, font_italic={self.font_italic}")
